@@ -9,6 +9,7 @@ class Program
 {
     public static void Main()
     {
+        //https://blogs.technet.microsoft.com/marcelofartura/2006/11/03/real-case-net-apps-no-connection-could-be-made-because-the-target-machine-actively-refused-it-basic/
         TcpListener server = null;
         List<TcpClient> clientsList = new List<TcpClient>();
         List<Task> taskList = new List<Task>();
@@ -44,9 +45,9 @@ class Program
                 //Console.WriteLine(client.ToString());
                 Console.WriteLine("Connected!");
 
-                Action a = () =>
+                Action<TcpClient> KeepListening = (myClient) =>
                 {
-                    while (true)
+                    while (myClient.Connected)
                     {
                         try
                         {
@@ -90,9 +91,11 @@ class Program
                         }
                     }
                 };
+                Task<TcpClient> x = new Task<TcpClient>(KeepListening);
+                Task<TcpClient> xx =(client);
                 lock ((object)taskList)
                 {
-                    taskList.Add(new Task(a));
+                    //taskList.Add(new Task<TcpClient>(clientsList[0]));
                     foreach (var elem in taskList)
                     {
                         try
