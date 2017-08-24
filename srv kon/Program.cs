@@ -10,6 +10,13 @@ class Program
 {
     public static TcpListener server = null;
     public static TcpClient client = null;
+    public static void Nasluchiwacz()
+    {
+        if (client != null)
+        {
+            Console.WriteLine("User is connedted: {0}", client.Client.Connected);
+        }
+    }
     public static void Main()
     {
 
@@ -17,6 +24,7 @@ class Program
         List<Task> taskList = new List<Task>();
         try
         {
+
             // Set the TcpListener on port 13000.
             Int32 port = 13000;
 
@@ -24,7 +32,8 @@ class Program
 
             // Start listening for client requests.
             server.Start();
-
+            Thread asd = new Thread(Nasluchiwacz);
+            asd.Start();
             // Buffer for reading data
             Byte[] bytes = new Byte[256];
             String data = null;
@@ -35,12 +44,14 @@ class Program
             while (true)
             {
                 Console.Write("Waiting for a connection... ");
+                //dopoki nie zostanie poproszony o dostep do portu to czeka
                 TcpClient client = server.AcceptTcpClient();
                 Console.WriteLine("Connected");
                 //dodaje go do listy subskrybentow
                 //zle dzialao bo klienty roznia sie numerami socketow,a  przez to samymi socketami, za kazdym razem bedzie nadany inny, nawet z tego samego konta
                 //trzeba sprawdzac po ip
-                if (!clientsList.Contains(client)) { clientsList.Add(client); client.Client.SendTimeout = 1000; }
+                //czekanie na wiadomosc od klienta do 5 sek
+                if (!clientsList.Contains(client)) { client.Client.SendTimeout = 5000;  clientsList.Add(client);  }
 
                 //wczensije sie co chwile laczylem, teraz musz jakos utrzymac polaczenie
                 Action a = () =>
@@ -72,6 +83,7 @@ class Program
 
                                         stream2.Write(msg, 0, msg.Length);
                                         Console.WriteLine("Sent to {1}: {0}", data, clients.Client.AddressFamily.ToString());
+                                        Console.WriteLine("Is he connected? {0}", clients.Client.Connected);
                                         Console.WriteLine("Amount fo clients: {0}", clientsList.Count);
                                     }
                                 }
@@ -89,8 +101,8 @@ class Program
                         }
                     }
                 };
-
-                lock ((object)taskList)
+                //uruchamianie wszystkich klientow w osobnych zadaniach
+                lock (taskList)
                 {
                     taskList.Add(new Task(a));
                     foreach (var elem in taskList)
@@ -108,6 +120,36 @@ class Program
                         }
                     }
                 }
+                //badanie zywotnosci klientow
+                lock (clientsList)
+                {
+                    for (int i = 0; i < clientsList.Count; i++)
+                    {
+                        //jesli rozlaczony to usun go z listy
+                        //clientsList[i].Client.Shutdown(SocketShutdown.Both);
+                        if(!SocketConnected(clientsList[i].Client))
+                        //if (!clientsList[i].Client.Connected)
+                        {
+                            clientsList[i].Client.Disconnect(true);
+                            clientsList[i].Client.Close();
+
+                            clientsList.Remove(clientsList[i]);
+
+                        }
+                    }
+                    //foreach (var elem in clientsList)
+                    //{
+                    //    //jesli rozlaczony to usun go z listy
+                    //    if (!elem.Client.Connected)
+                    //    {
+                    //        elem.Client.Disconnect(true);
+                    //        elem.Client.Close();
+
+                    //        clientsList.Remove(elem);
+                            
+                    //    }
+                    //}
+                }
             }
         }
         catch (SocketException e)
@@ -124,7 +166,15 @@ class Program
         Console.WriteLine("\nHit enter to continue...");
         Console.Read();
     }
-
+    static bool SocketConnected(Socket s)
+    {
+        bool part1 = s.Poll(1000, SelectMode.SelectRead);
+        bool part2 = (s.Available == 0);
+        if (part1 && part2)
+            return false;
+        else
+            return true;
+    }
 }
 //teoretyczna funkcja do sprawdzania czy client jest juz na liscie
 //int counter = 0;
