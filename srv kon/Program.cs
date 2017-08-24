@@ -8,8 +8,11 @@ using System.Threading.Tasks;
 using System.Threading;
 class Program
 {
-    public static TcpListener server = null;
-    public static TcpClient client = null;
+    //do npisania poprawne zakonczenie polaczenia po naglym wyjsciu z klienta
+    public static TcpListener server;
+    public static TcpClient client;
+    public static NetworkStream stream2;
+    public static NetworkStream stream;
     public static void Nasluchiwacz()
     {
         if (client != null)
@@ -45,13 +48,13 @@ class Program
             {
                 Console.Write("Waiting for a connection... ");
                 //dopoki nie zostanie poproszony o dostep do portu to czeka
-                TcpClient client = server.AcceptTcpClient();
+                client = server.AcceptTcpClient();
                 Console.WriteLine("Connected");
                 //dodaje go do listy subskrybentow
                 //zle dzialao bo klienty roznia sie numerami socketow,a  przez to samymi socketami, za kazdym razem bedzie nadany inny, nawet z tego samego konta
                 //trzeba sprawdzac po ip
                 //czekanie na wiadomosc od klienta do 5 sek
-                if (!clientsList.Contains(client)) { client.Client.SendTimeout = 5000;  clientsList.Add(client);  }
+                if (!clientsList.Contains(client)) { client.Client.SendTimeout = 5000; clientsList.Add(client); }
 
                 //wczensije sie co chwile laczylem, teraz musz jakos utrzymac polaczenie
                 Action a = () =>
@@ -61,7 +64,7 @@ class Program
                         try
                         {
                             data = "";
-                            NetworkStream stream = client.GetStream();
+                            stream = client.GetStream();
 
                             int i;
                             //w osobnych watkach wysylam im wiadomosci 1 watek na kazdego klienta
@@ -78,7 +81,7 @@ class Program
                                 {
                                     foreach (var clients in clientsList)
                                     {
-                                        NetworkStream stream2 = clients.GetStream();
+                                        stream2 = clients.GetStream();
                                         // Send back a response.
 
                                         stream2.Write(msg, 0, msg.Length);
@@ -126,9 +129,7 @@ class Program
                     for (int i = 0; i < clientsList.Count; i++)
                     {
                         //jesli rozlaczony to usun go z listy
-                        //clientsList[i].Client.Shutdown(SocketShutdown.Both);
-                        if(!SocketConnected(clientsList[i].Client))
-                        //if (!clientsList[i].Client.Connected)
+                        if (!SocketConnected(clientsList[i].Client))
                         {
                             clientsList[i].Client.Disconnect(true);
                             clientsList[i].Client.Close();
@@ -137,18 +138,6 @@ class Program
 
                         }
                     }
-                    //foreach (var elem in clientsList)
-                    //{
-                    //    //jesli rozlaczony to usun go z listy
-                    //    if (!elem.Client.Connected)
-                    //    {
-                    //        elem.Client.Disconnect(true);
-                    //        elem.Client.Close();
-
-                    //        clientsList.Remove(elem);
-                            
-                    //    }
-                    //}
                 }
             }
         }
@@ -166,9 +155,17 @@ class Program
         Console.WriteLine("\nHit enter to continue...");
         Console.Read();
     }
+
+    //    It works like this:
+    //s.Poll returns true if
+    //connection is closed, reset, terminated or pending (meaning no active connection)
+    //connection is active and there is data available for reading
+    //s.Available returns number of bytes available for reading
+    //if both are true:
+    //there is no data available to read so connection is not active
     static bool SocketConnected(Socket s)
     {
-        bool part1 = s.Poll(1000, SelectMode.SelectRead);
+        bool part1 = s.Poll(10000, SelectMode.SelectRead);
         bool part2 = (s.Available == 0);
         if (part1 && part2)
             return false;
