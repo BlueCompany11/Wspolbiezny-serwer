@@ -5,22 +5,22 @@ using System.Net.Sockets;
 using System.Text;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Threading;
 class Program
 {
+    public static TcpListener server = null;
+    public static TcpClient client = null;
     public static void Main()
     {
-        //https://blogs.technet.microsoft.com/marcelofartura/2006/11/03/real-case-net-apps-no-connection-could-be-made-because-the-target-machine-actively-refused-it-basic/
-        TcpListener server = null;
+
         List<TcpClient> clientsList = new List<TcpClient>();
         List<Task> taskList = new List<Task>();
         try
         {
             // Set the TcpListener on port 13000.
             Int32 port = 13000;
-            IPAddress localAddr = IPAddress.Parse("127.0.0.1");
 
-            // TcpListener server = new TcpListener(port);
-            server = new TcpListener(localAddr, port);
+            server = new TcpListener(IPAddress.Any, port);
 
             // Start listening for client requests.
             server.Start();
@@ -29,25 +29,23 @@ class Program
             Byte[] bytes = new Byte[256];
             String data = null;
             //List < TcpClient > clientsList= new List<TcpClient>();
+            //ustanawiam placzenie
 
             // Enter the listening loop.
             while (true)
             {
                 Console.Write("Waiting for a connection... ");
-
-                // Perform a blocking call to accept requests.
-                // You could also user server.AcceptSocket() here.
-                //ustanawiam placzenie
-
                 TcpClient client = server.AcceptTcpClient();
+                Console.WriteLine("Connected");
                 //dodaje go do listy subskrybentow
-                if (!clientsList.Contains(client)) { clientsList.Add(client); }
-                //Console.WriteLine(client.ToString());
-                Console.WriteLine("Connected!");
+                //zle dzialao bo klienty roznia sie numerami socketow,a  przez to samymi socketami, za kazdym razem bedzie nadany inny, nawet z tego samego konta
+                //trzeba sprawdzac po ip
+                if (!clientsList.Contains(client)) { clientsList.Add(client); client.Client.SendTimeout = 1000; }
 
-                Action<TcpClient> KeepListening = (myClient) =>
+                //wczensije sie co chwile laczylem, teraz musz jakos utrzymac polaczenie
+                Action a = () =>
                 {
-                    while (myClient.Connected)
+                    while (true)
                     {
                         try
                         {
@@ -73,12 +71,12 @@ class Program
                                         // Send back a response.
 
                                         stream2.Write(msg, 0, msg.Length);
-                                        Console.WriteLine("Sent: {0}", data);
+                                        Console.WriteLine("Sent to {1}: {0}", data, clients.Client.AddressFamily.ToString());
+                                        Console.WriteLine("Amount fo clients: {0}", clientsList.Count);
                                     }
                                 }
                                 catch (InvalidOperationException)
                                 {
-                                    //Console.WriteLine(ex.ToString());
                                 }
                                 catch (Exception ex)
                                 {
@@ -91,11 +89,10 @@ class Program
                         }
                     }
                 };
-                Task<TcpClient> x = new Task<TcpClient>(KeepListening);
-                Task<TcpClient> xx =(client);
+
                 lock ((object)taskList)
                 {
-                    //taskList.Add(new Task<TcpClient>(clientsList[0]));
+                    taskList.Add(new Task(a));
                     foreach (var elem in taskList)
                     {
                         try
@@ -127,8 +124,26 @@ class Program
         Console.WriteLine("\nHit enter to continue...");
         Console.Read();
     }
-    public static void DoInThread(object param)
-    {
 
-    }
 }
+//teoretyczna funkcja do sprawdzania czy client jest juz na liscie
+//int counter = 0;
+//if (client != null)
+//{
+//    foreach (var elem in clientsList)
+//    {
+//        //if ((elem.Client.LocalEndPoint.AddressFamily == client.Client.LocalEndPoint.AddressFamily))
+//        //{
+//        //    counter++;
+//        //}
+//        if ((elem.Client.RemoteEndPoint.AddressFamily == client.Client.RemoteEndPoint.AddressFamily))
+//        {
+//            counter++;
+//        }
+//    }
+//    if (counter == 0)
+//    {
+//        clientsList.Add(client);
+//    }
+//}
+//Console.WriteLine(client.ToString());
