@@ -6,6 +6,7 @@ using System.Text;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Threading;
+using System.Runtime.InteropServices;
 class Program
 {
     //do npisania poprawne zakonczenie polaczenia po naglym wyjsciu z klienta
@@ -81,13 +82,16 @@ class Program
                                 {
                                     foreach (var clients in clientsList)
                                     {
-                                        stream2 = clients.GetStream();
-                                        // Send back a response.
+                                        if (SocketConnected(clients.Client))
+                                        {
+                                            stream2 = clients.GetStream();
+                                            // Send back a response.
 
-                                        stream2.Write(msg, 0, msg.Length);
-                                        Console.WriteLine("Sent to {1}: {0}", data, clients.Client.AddressFamily.ToString());
-                                        Console.WriteLine("Is he connected? {0}", clients.Client.Connected);
-                                        Console.WriteLine("Amount fo clients: {0}", clientsList.Count);
+                                            stream2.Write(msg, 0, msg.Length);
+                                            Console.WriteLine("Sent to {1}: {0}", data, clients.Client.AddressFamily.ToString());
+                                            Console.WriteLine("Is he connected? {0}", clients.Client.Connected);
+                                            Console.WriteLine("Amount fo clients: {0}", clientsList.Count);
+                                        }
                                     }
                                 }
                                 catch (InvalidOperationException)
@@ -131,7 +135,7 @@ class Program
                         //jesli rozlaczony to usun go z listy
                         if (!SocketConnected(clientsList[i].Client))
                         {
-                            clientsList[i].Client.Disconnect(true);
+                            clientsList[i].Client.Disconnect(true); //jak jest 1 klient to jego disconect powoduje wylaczenie serwera?
                             clientsList[i].Client.Close();
 
                             clientsList.Remove(clientsList[i]);
