@@ -10,6 +10,7 @@ using System.Runtime.InteropServices;
 class Program
 {
     //do npisania poprawne zakonczenie polaczenia po naglym wyjsciu z klienta
+    //sprawdzic czy to na gorze ciagle akutalne i dlaczego wysyla mi klika razy z powrotem na tego samego klienta zamiast do wszystkich z listy
     public static TcpListener server;
     public static TcpClient client;
     public static NetworkStream stream2;
@@ -78,28 +79,40 @@ class Program
                                 Console.WriteLine("Received: {0}", data);
 
                                 byte[] msg = System.Text.Encoding.ASCII.GetBytes(data);
-                                try
+                                lock (clientsList)
                                 {
-                                    foreach (var clients in clientsList)
+                                    try
                                     {
-                                        if (SocketConnected(clients.Client))
+                                        Console.WriteLine("Wchodze do clientslist");
+                                        foreach (var clients in clientsList)
                                         {
-                                            stream2 = clients.GetStream();
-                                            // Send back a response.
-
-                                            stream2.Write(msg, 0, msg.Length);
-                                            Console.WriteLine("Sent to {1}: {0}", data, clients.Client.AddressFamily.ToString());
-                                            Console.WriteLine("Is he connected? {0}", clients.Client.Connected);
-                                            Console.WriteLine("Amount fo clients: {0}", clientsList.Count);
+                                            Console.WriteLine("moj remotesocketport to {0}",clients.Client.RemoteEndPoint.ToString());
+                                            //if (SocketConnected(clients.Client))
+                                            //{
+                                            try
+                                            {
+                                                stream2 = clients.GetStream();
+                                                clients.Client.SendTo(msg, clients.Client.LocalEndPoint);
+                                                stream2.Write(msg, 0, msg.Length);
+                                                Console.WriteLine("Sent to {1}: {0}", data, clients.Client.AddressFamily.ToString());
+                                                //Console.WriteLine("Sent to {1}: {0}", data, clients.Client.AddressFamily.ToString());
+                                                Console.WriteLine("Is he connected? {0}", clients.Client.Connected);
+                                                Console.WriteLine("Amount fo clients: {0}", clientsList.Count);
+                                                //}
+                                            }
+                                            catch (InvalidOperationException e)
+                                            {
+                                                Console.WriteLine(e.Message.ToString());
+                                            }
                                         }
                                     }
-                                }
-                                catch (InvalidOperationException)
-                                {
-                                }
-                                catch (Exception ex)
-                                {
-                                    Console.WriteLine(ex.ToString());
+                                    catch (InvalidOperationException)
+                                    {
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine(ex.ToString());
+                                    }
                                 }
                             }
                         }
@@ -116,7 +129,7 @@ class Program
                     {
                         try
                         {
-                            if (elem.Status != TaskStatus.Running)
+                            if (elem.Status != TaskStatus.Running || elem.Status!=TaskStatus.RanToCompletion)
                             {
                                 elem.Start();
                             }
