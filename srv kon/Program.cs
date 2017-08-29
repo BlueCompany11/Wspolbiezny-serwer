@@ -1,110 +1,174 @@
 ﻿using System;
-using System.Text;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading.Tasks;
+using System.Text;
 using System.Collections.Generic;
-
-namespace Program
+using System.Threading.Tasks;
+using System.Threading;
+using System.Runtime.InteropServices;
+class Program
 {
-    public class TcpListenerSample
+    //do npisania poprawne zakonczenie polaczenia po naglym wyjsciu z klienta
+    //sprawdzic czy to na gorze ciagle akutalne i dlaczego wysyla mi klika razy z powrotem na tego samego klienta zamiast do wszystkich z listy ciagle potrzebuje opowiedzi na to pytanie
+    public static TcpListener server;
+    [ThreadStatic]
+    public static TcpClient client;
+    public static NetworkStream stream2;
+    [ThreadStatic]
+    public static NetworkStream stream;
+    public static List<TcpClient> clientsList = new List<TcpClient>();
+    public static List<Task> taskList = new List<Task>();
+    public static Byte[] bytes = new Byte[256];
+    public static String data = null;
+    public static void Nasluchiwacz()
     {
-        public static TcpClient client;
-        public static int port = 13000;
-        public static TcpListener server = new TcpListener(IPAddress.Any, port);
-        public static byte[] bytes = new byte[1024];
-        public static string data;
-        public static List<TcpClient> clientsList = new List<TcpClient>();
-        static void Main(string[] args)
+        if (client != null)
         {
-            Action CheckIfConnectedAction = () =>
+            Console.WriteLine("User is connected: {0}", client.Client.Connected);
+        }
+    }
+    //
+    public static void Main()
+    {
+        try
+        {
+            Int32 port = 13000;
+
+            server = new TcpListener(IPAddress.Any, port);
+
+            server.Start();
+
+            while (true)
             {
-                while (true)
+                Console.Write("Waiting for a connection... ");
+                //dopoki nie zostanie poproszony o dostep do portu to czeka
+                client = server.AcceptTcpClient();
+                Console.WriteLine("Connected");
+                if (!clientsList.Contains(client))
                 {
-                    //lock (clientsList)
-                    //{
-                    //    foreach (var item in clientsList)
-                    //    {
-                    //        if (item.Client.Connected)
-                    //        {
-                    //            Console.WriteLine(item.Client.RemoteEndPoint.ToString() + "Connected");
-                    //        }
-                    //        else
-                    //        {
-                    //            Console.WriteLine(item.Client.RemoteEndPoint.ToString() + "Disconnected");
-                    //        }
-                    //    }
-                    //}
+                    lock (client)
+                    {
+                        client.Client.SendTimeout = 50000;
+                        clientsList.Add(client);
+                        //kazdy klient dostaje wlasny watek do obslugi
+                        Task t = new Task((e) =>
+                        {
+                            TalkWithClient((TcpClient)e);
+                        }, client);
+                        t.Start();
+                        Console.WriteLine(client.Client.RemoteEndPoint.ToString());
+                    }
+                }
+                //badanie zywotnosci klientow
+                lock (clientsList)
+                {
                     for (int i = 0; i < clientsList.Count; i++)
                     {
-                        if (clientsList[i].Client.Connected)
+                        //jesli rozlaczony to usun go z listy
+                        if (!SocketConnected(clientsList[i].Client))
                         {
-                            Console.WriteLine(clientsList[i].Client.RemoteEndPoint.ToString() + "Connected");
-                        }
-                        else
-                        {
-                            Console.WriteLine(clientsList[i].Client.RemoteEndPoint.ToString() + "Disconnected");
+                            clientsList[i].Client.Disconnect(true);
+                            clientsList[i].Client.Close();
+
+                            clientsList.Remove(clientsList[i]);
+
                         }
                     }
-
                 }
-            };
-            Task CheckIfConnectedTask = new Task(CheckIfConnectedAction);
+            }
+        }
+        catch (SocketException e)
+        {
+            Console.WriteLine("SocketException: {0}", e);
+        }
+        finally
+        {
+            // Stop listening for new clients.
+            server.Stop();
+        }
+
+
+        Console.WriteLine("\nHit enter to continue...");
+        Console.Read();
+    }
+    //jako arguemnt przyjmuje klienta
+    public static void TalkWithClient(TcpClient clientTemp)
+    {
+        while (true)
+        {
             try
             {
-                server.Start();
-                //Enter the listening loop
-                while (true)
+                data = "";
+                while (stream == null)
                 {
-                    try
+                    stream = clientTemp.GetStream();
+                }
+                lock (stream)
+                {
+                    stream = clientTemp.GetStream();
+                    //klienci nasluchuja rownolegle korzystajac z jednego strumienia na zmiane go redefiniujac
+                    //jesli sie cos pojawi to od razu to wysylaja to wszystkich klientow poza soba samym
+                    int i = stream.Read(bytes, 0, bytes.Length);
+                    while (i != 0)  //gdy pojawi sie jakas wiadomosc
                     {
-                        if (client != null && CheckIfConnectedTask.Status != TaskStatus.Running)
+                        data = System.Text.Encoding.ASCII.GetString(bytes, 0, i);   //tutaj nyl blad
+                        Console.WriteLine("Received: {0}", data);
+                        byte[] msg = System.Text.Encoding.ASCII.GetBytes(data);
+                        lock (clientsList)
                         {
-                            CheckIfConnectedTask.Start();
+                            try
+                            {
+                                foreach (var clients in clientsList)
+                                {
+                                    try
+                                    {
+                                        if (clientTemp != clients)
+                                        {
+                                            stream2 = clients.GetStream();
+                                            Console.WriteLine(stream2.ToString());
+                                            stream2.Write(msg, 0, msg.Length);
+                                            Console.WriteLine("Sent to {1}: {0}", data, clients.Client.RemoteEndPoint.ToString());
+                                        }
+                                    }
+                                    catch (InvalidOperationException e)
+                                    {
+                                        Console.WriteLine(e.Message.ToString());
+                                    }
+                                }
+                            }
+                            catch (InvalidOperationException)
+                            {
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine(ex.ToString());
+                            }
                         }
-                        Console.Write("Waiting for a connection... ");
-                        client = server.AcceptTcpClient();
-                        Console.WriteLine("Connected!");
-                        if (!clientsList.Contains(client))
-                        {
-                            clientsList.Add(client);
-                        }
-                        NetworkStream stream = client.GetStream();
-                        int i = stream.Read(bytes, 0, bytes.Length); 
-                        while (i != 0)
-                        {
-                            // Translate data bytes to a ASCII string.
-                            data = System.Text.Encoding.ASCII.GetString(bytes, 0, i);
-                            Console.WriteLine(String.Format("Received: {0}", data));
-                            data = "ID " + client.Client.RemoteEndPoint.ToString() + " " + data;
-                            byte[] msg = System.Text.Encoding.ASCII.GetBytes(data);
-                            // Send back a response.
-                            stream.Write(msg, 0, msg.Length);
-                            Console.WriteLine(String.Format("Sent: {0}", data));
-                            //doczytywanie pozostalych danych nadeslanych w miedzyczasie
-                            i = stream.Read(bytes, 0, bytes.Length);
-                            //testy
-                        }
+                        i = stream.Read(bytes, 0, bytes.Length);
                     }
-                    catch(System.IO.IOException e) { }
-                    // Shutdown and end connection
-                    //client.Close();
                 }
             }
-            catch(System.IO.IOException e)
+            catch (Exception ex)
             {
-                //client.Close();
             }
-            catch (SocketException e)
-            {
-                Console.WriteLine("SocketException: {0}", e);
-            }
-
-
-            Console.WriteLine("Hit enter to continue...");
-            Console.Read();
         }
 
     }
-}
+    //    It works like this:
+    //s.Poll returns true if
+    //connection is closed, reset, terminated or pending (meaning no active connection)
+    //connection is active and there is data available for reading
+    //s.Available returns number of bytes available for reading
+    //if both are true:
+    //there is no data available to read so connection is not active
+    static bool SocketConnected(Socket s)
+    {
+        bool part1 = s.Poll(10000, SelectMode.SelectRead);
+        bool part2 = (s.Available == 0);
+        if (part1 && part2)
+            return false;
+        else
+            return true;
+    }
+};
