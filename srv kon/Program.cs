@@ -4,6 +4,7 @@ using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace Program
 {
@@ -14,25 +15,42 @@ namespace Program
         public static TcpListener server = new TcpListener(IPAddress.Any, port);
         public static byte[] bytes = new byte[1024];
         public static string data;
+        public static List<TcpClient> clientsList = new List<TcpClient>();
         static void Main(string[] args)
         {
-            Action a = () =>
+            Action CheckIfConnectedAction = () =>
             {
                 while (true)
                 {
-                    Task.Delay(5000);
-                    if (client.Client.Connected)
+                    //lock (clientsList)
+                    //{
+                    //    foreach (var item in clientsList)
+                    //    {
+                    //        if (item.Client.Connected)
+                    //        {
+                    //            Console.WriteLine(item.Client.RemoteEndPoint.ToString() + "Connected");
+                    //        }
+                    //        else
+                    //        {
+                    //            Console.WriteLine(item.Client.RemoteEndPoint.ToString() + "Disconnected");
+                    //        }
+                    //    }
+                    //}
+                    for (int i = 0; i < clientsList.Count; i++)
                     {
-                        Console.WriteLine(client.Client.RemoteEndPoint.ToString() + "Connected");
+                        if (clientsList[i].Client.Connected)
+                        {
+                            Console.WriteLine(clientsList[i].Client.RemoteEndPoint.ToString() + "Connected");
+                        }
+                        else
+                        {
+                            Console.WriteLine(clientsList[i].Client.RemoteEndPoint.ToString() + "Disconnected");
+                        }
                     }
-                    else
-                    {
-                        Console.WriteLine(client.Client.RemoteEndPoint.ToString() + "Disconnected");
-                    }
+
                 }
             };
-            Task x = new Task(a);
-
+            Task CheckIfConnectedTask = new Task(CheckIfConnectedAction);
             try
             {
                 server.Start();
@@ -41,12 +59,19 @@ namespace Program
                 {
                     try
                     {
+                        if (client != null && CheckIfConnectedTask.Status != TaskStatus.Running)
+                        {
+                            CheckIfConnectedTask.Start();
+                        }
                         Console.Write("Waiting for a connection... ");
                         client = server.AcceptTcpClient();
                         Console.WriteLine("Connected!");
-                        
+                        if (!clientsList.Contains(client))
+                        {
+                            clientsList.Add(client);
+                        }
                         NetworkStream stream = client.GetStream();
-                        int i = stream.Read(bytes, 0, bytes.Length);
+                        int i = stream.Read(bytes, 0, bytes.Length); 
                         while (i != 0)
                         {
                             // Translate data bytes to a ASCII string.
@@ -60,10 +85,6 @@ namespace Program
                             //doczytywanie pozostalych danych nadeslanych w miedzyczasie
                             i = stream.Read(bytes, 0, bytes.Length);
                             //testy
-                            if (client != null && x.Status != TaskStatus.Running)
-                            {
-                                x.Start();
-                            }
                         }
                     }
                     catch(System.IO.IOException e) { }
