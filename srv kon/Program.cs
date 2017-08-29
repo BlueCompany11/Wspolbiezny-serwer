@@ -32,85 +32,46 @@ class Program
     {
         try
         {
-
-            // Set the TcpListener on port 13000.
             Int32 port = 13000;
 
             server = new TcpListener(IPAddress.Any, port);
 
-            // Start listening for client requests.
             server.Start();
-            //Thread asd = new Thread(Nasluchiwacz);
-            //asd.Start();
-            // Buffer for reading data
 
-            //List < TcpClient > clientsList= new List<TcpClient>();
-            //ustanawiam placzenie
-
-            // Enter the listening loop.
             while (true)
             {
                 Console.Write("Waiting for a connection... ");
                 //dopoki nie zostanie poproszony o dostep do portu to czeka
                 client = server.AcceptTcpClient();
                 Console.WriteLine("Connected");
-                //tutaj zaczalem
-                //stream = client.GetStream();
-                //string x = "halo";
-                //bytes = System.Text.Encoding.ASCII.GetBytes(x);
-                //// Send the message to the connected TcpServer. 
-                //stream.Write(bytes, 0,bytes.Length);
-                //tutaj skonczylem
-                //dodaje go do listy subskrybentow
-                //zle dzialao bo klienty roznia sie numerami socketow,a  przez to samymi socketami, za kazdym razem bedzie nadany inny, nawet z tego samego konta
-                //trzeba sprawdzac po ip
-                //czekanie na wiadomosc od klienta do 5 sek
+
                 if (!clientsList.Contains(client))
                 {
                     client.Client.SendTimeout = 50000;
                     clientsList.Add(client);
-                    Task t = new Task((e) => { TalkWithClient(client); }, client);
+                    //kazdy klient dostaje wlasny watek do obslugi
+                    Task t = new Task((e) => {
+                        TalkWithClient((TcpClient)e);
+                    }, clientsList[clientsList.Count-1]);
                     t.Start();
                     Console.WriteLine(client.Client.RemoteEndPoint.ToString());
                 }
-
-                //wczensije sie co chwile laczylem, teraz musz jakos utrzymac polaczenie
-
-                //uruchamianie wszystkich klientow w osobnych zadaniach
-                //lock (taskList)
-                //{
-                //    taskList.Add(new Task(a));
-                //    foreach (var elem in taskList)
-                //    {
-                //        try
-                //        {
-                //            if (elem.Status != TaskStatus.Running || elem.Status != TaskStatus.RanToCompletion)
-                //            {
-                //                elem.Start();
-                //            }
-                //        }
-                //        catch (Exception ex)
-                //        {
-
-                //        }
-                //    }
-                //}
                 //badanie zywotnosci klientow
-                //lock (clientsList)
-                //{
-                //    for (int i = 0; i < clientsList.Count; i++)
-                //    {
-                //        //jesli rozlaczony to usun go z listy
-                //        if (!SocketConnected(clientsList[i].Client))
-                //        {
-                //            clientsList[i].Client.Disconnect(true); //jak jest 1 klient to jego disconect powoduje wylaczenie serwera?
-                //            clientsList[i].Client.Close();
+                lock (clientsList)
+                {
+                    for (int i = 0; i < clientsList.Count; i++)
+                    {
+                        //jesli rozlaczony to usun go z listy
+                        if (!SocketConnected(clientsList[i].Client))
+                        {
+                            clientsList[i].Client.Disconnect(true); 
+                            clientsList[i].Client.Close();
 
-                //            clientsList.Remove(clientsList[i]);
+                            clientsList.Remove(clientsList[i]);
 
-                //        }
-                //    }
-                //}
+                        }
+                    }
+                }
             }
         }
         catch (SocketException e)
@@ -127,30 +88,26 @@ class Program
         Console.WriteLine("\nHit enter to continue...");
         Console.Read();
     }
-    public static void TalkWithClient(TcpClient clientt)
+    //jako arguemnt przyjmuje klienta
+    public static void TalkWithClient(TcpClient clientTemp)
     {
-        client = clientt;
         while (true)
         {
             try
             {
                 data = "";
-                //nie jest potrzebny while read bo jesli wiadomosc nie przekracza 1440 bitow to read pochlonie to za jednym razem jbc to dopisac vollitale? by wykonalo sie to jako operacja atomowa?
                 int i;
-                ////w osobnych watkach wysylam im wiadomosci 1 watek na kazdego klienta
-                //if (stream == null)
-                //{
                 while (stream == null)
                 {
-                    stream = client.GetStream();
+                    stream = clientTemp.GetStream();
                 }
-                //}
                 lock (stream)
                 {
-                    //stream = client.GetStream();
+                    stream = clientTemp.GetStream();
+                    //klienci nasluchuja rownolegle korzystajac z jednego strumienia na zmiane go redefiniujac
+                    //jesli sie cos pojawi to od razu to wysylaja to wszystkich klientow poza soba samym
                     while ((i = stream.Read(bytes, 0, bytes.Length)) != 0)  //gdy pojawi sie jakas wiadomosc
                     {
-                        // Translate data bytes to a ASCII string.
                         data = System.Text.Encoding.ASCII.GetString(bytes, 0, stream.Read(bytes, 0, bytes.Length));
                         Console.WriteLine("Received: {0}", data);
                         byte[] msg = System.Text.Encoding.ASCII.GetBytes(data);
@@ -158,30 +115,17 @@ class Program
                         {
                             try
                             {
-                                //Console.WriteLine("Wchodze do clientslist");
                                 foreach (var clients in clientsList)
                                 {
                                     try
                                     {
-                                        if (client != clients)
+                                        if (clientTemp != clients)
                                         {
                                             stream2 = clients.GetStream();
                                             Console.WriteLine(stream2.ToString());
                                             stream2.Write(msg, 0, msg.Length);
                                             Console.WriteLine("Sent to {1}: {0}", data, clients.Client.RemoteEndPoint.ToString());
                                         }
-                                        //Console.WriteLine("Is he connected? {0}", clients.Client.Connected);
-                                        //Console.WriteLine("Amount fo clients: {0}", clientsList.Count);
-                                        //Console.WriteLine("Proba przesjcia na okolo");
-                                        //for (int j = 0; j < clientsList.Count; ++j)
-                                        //{
-                                        //    if (clients != clientsList[j])
-                                        //    {
-
-                                        //        clients.Client.SendTo(msg, clientsList[j].Client.LocalEndPoint);
-                                        //        Console.WriteLine("Wyslano przed chwila wiadomosc");
-                                        //    }
-                                        //}
                                     }
                                     catch (InvalidOperationException e)
                                     {
@@ -196,17 +140,6 @@ class Program
                             {
                                 Console.WriteLine(ex.ToString());
                             }
-                            //
-                            //for (int j = 0; j < clientsList.Count; j++)
-                            //{
-                            //    for (int k = 0; k < clientsList.Count; k++)
-                            //    {
-                            //        if (clientsList[k] != clientsList[j])
-                            //        {
-                            //            clientsList[k].Client.SendTo(msg, clientsList[j].Client.RemoteEndPoint);
-                            //        }
-                            //    }
-                            //}
                         }
                     }
                 }
@@ -234,27 +167,3 @@ class Program
             return true;
     }
 };
-
-
-
-//teoretyczna funkcja do sprawdzania czy client jest juz na liscie
-//int counter = 0;
-//if (client != null)
-//{
-//    foreach (var elem in clientsList)
-//    {
-//        //if ((elem.Client.LocalEndPoint.AddressFamily == client.Client.LocalEndPoint.AddressFamily))
-//        //{
-//        //    counter++;
-//        //}
-//        if ((elem.Client.RemoteEndPoint.AddressFamily == client.Client.RemoteEndPoint.AddressFamily))
-//        {
-//            counter++;
-//        }
-//    }
-//    if (counter == 0)
-//    {
-//        clientsList.Add(client);
-//    }
-//}
-//Console.WriteLine(client.ToString());
