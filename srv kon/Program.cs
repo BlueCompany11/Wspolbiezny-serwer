@@ -14,13 +14,11 @@ class Program
     public static TcpListener server;
     [ThreadStatic]
     public static TcpClient client;
-    public static NetworkStream stream2;
     [ThreadStatic]
     public static NetworkStream stream;
     public static List<TcpClient> clientsList = new List<TcpClient>();
     public static List<Task> taskList = new List<Task>();
     public static Byte[] bytes = new Byte[256];
-    public static String data = null;
     public static void Nasluchiwacz()
     {
         if (client != null)
@@ -28,7 +26,8 @@ class Program
             Console.WriteLine("User is connected: {0}", client.Client.Connected);
         }
     }
-    //
+
+
     public static void Main()
     {
         try
@@ -61,21 +60,21 @@ class Program
                     }
                 }
                 //badanie zywotnosci klientow
-                lock (clientsList)
-                {
-                    for (int i = 0; i < clientsList.Count; i++)
-                    {
-                        //jesli rozlaczony to usun go z listy
-                        if (!SocketConnected(clientsList[i].Client))
-                        {
-                            clientsList[i].Client.Disconnect(true);
-                            clientsList[i].Client.Close();
+                //lock (clientsList)
+                //{
+                //    for (int i = 0; i < clientsList.Count; i++)
+                //    {
+                //        //jesli rozlaczony to usun go z listy
+                //        if (!SocketConnected(clientsList[i].Client))
+                //        {
+                //            clientsList[i].Client.Disconnect(true);
+                //            clientsList[i].Client.Close();
 
-                            clientsList.Remove(clientsList[i]);
+                //            clientsList.Remove(clientsList[i]);
 
-                        }
-                    }
-                }
+                //        }
+                //    }
+                //}
             }
         }
         catch (SocketException e)
@@ -95,8 +94,19 @@ class Program
     //jako arguemnt przyjmuje klienta
     public static void TalkWithClient(TcpClient clientTemp)
     {
+        NetworkStream stream2;
+        string data;
         while (true)
         {
+           
+            if (clientTemp.Connected)
+            {
+                stream2 = clientTemp.GetStream();
+            }
+            else
+            {
+                clientsList.Remove(clientTemp);
+            }
             try
             {
                 data = "";
@@ -106,13 +116,13 @@ class Program
                 }
                 lock (stream)
                 {
-                    stream = clientTemp.GetStream();
+                    //stream = clientTemp.GetStream();
                     //klienci nasluchuja rownolegle korzystajac z jednego strumienia na zmiane go redefiniujac
                     //jesli sie cos pojawi to od razu to wysylaja to wszystkich klientow poza soba samym
                     int i = stream.Read(bytes, 0, bytes.Length);
                     while (i != 0)  //gdy pojawi sie jakas wiadomosc
                     {
-                        data = System.Text.Encoding.ASCII.GetString(bytes, 0, i);   //tutaj nyl blad
+                        data = System.Text.Encoding.ASCII.GetString(bytes, 0, i);   //tutaj byl blad
                         Console.WriteLine("Received: {0}", data);
                         byte[] msg = System.Text.Encoding.ASCII.GetBytes(data);
                         lock (clientsList)
@@ -123,13 +133,13 @@ class Program
                                 {
                                     try
                                     {
-                                        if (clientTemp != clients)
-                                        {
+                                        //if (clientTemp.Client.RemoteEndPoint != clients.Client.RemoteEndPoint)    //wczesniej bylo porownywanie po samych klientach tcp
+                                        //{
                                             stream2 = clients.GetStream();
                                             Console.WriteLine(stream2.ToString());
                                             stream2.Write(msg, 0, msg.Length);
                                             Console.WriteLine("Sent to {1}: {0}", data, clients.Client.RemoteEndPoint.ToString());
-                                        }
+                                        //}
                                     }
                                     catch (InvalidOperationException e)
                                     {
