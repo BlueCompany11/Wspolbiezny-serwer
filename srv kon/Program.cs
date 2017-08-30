@@ -27,7 +27,6 @@ class Program
         }
     }
 
-
     public static void Main()
     {
         try
@@ -59,22 +58,6 @@ class Program
                         Console.WriteLine(client.Client.RemoteEndPoint.ToString());
                     }
                 }
-                //badanie zywotnosci klientow
-                //lock (clientsList)
-                //{
-                //    for (int i = 0; i < clientsList.Count; i++)
-                //    {
-                //        //jesli rozlaczony to usun go z listy
-                //        if (!SocketConnected(clientsList[i].Client))
-                //        {
-                //            clientsList[i].Client.Disconnect(true);
-                //            clientsList[i].Client.Close();
-
-                //            clientsList.Remove(clientsList[i]);
-
-                //        }
-                //    }
-                //}
             }
         }
         catch (SocketException e)
@@ -123,6 +106,7 @@ class Program
                     while (i != 0)  //gdy pojawi sie jakas wiadomosc
                     {
                         data = System.Text.Encoding.ASCII.GetString(bytes, 0, i);   //tutaj byl blad
+                        data = "ID: " + clientTemp.Client.RemoteEndPoint+": "+data;
                         Console.WriteLine("Received: {0}", data);
                         byte[] msg = System.Text.Encoding.ASCII.GetBytes(data);
                         lock (clientsList)
