@@ -28,8 +28,8 @@ namespace srv_kon
 
         public static void Main()
         {
-            List<DateTime> dd = new List<DateTime>();
-            Console.WriteLine(DateTime.Now);
+            //List<DateTime> dd = new List<DateTime>();
+            //Console.WriteLine(DateTime.Now);
 
             try
             {
@@ -41,11 +41,11 @@ namespace srv_kon
                     Dns.GetHostEntry(string.Empty).AddressList,
                     a => a.AddressFamily == AddressFamily.InterNetwork);
 
-                Console.WriteLine("Server IP is: " + ipv4Addresses[0]);
+                Console.WriteLine("Server's IP: " + ipv4Addresses[0]);
 
                 while (true)
                 {
-                    Console.Write("Waiting for a connection... ");
+                    Console.WriteLine("Waiting for a connection... ");
                     //dopoki nie zostanie poproszony o dostep do portu to czeka
                     client = server.AcceptTcpClient();
                     Console.WriteLine("Connected");
@@ -85,7 +85,6 @@ namespace srv_kon
             string data;
             while (true)
             {
-
                 if (clientTemp.Connected)
                 {
                     stream2 = clientTemp.GetStream();
@@ -110,41 +109,54 @@ namespace srv_kon
                         while (i != 0)  //gdy pojawi sie jakas wiadomosc
                         {
                             data = System.Text.Encoding.ASCII.GetString(bytes, 0, i);
-                            data = "ID: " + clientTemp.Client.RemoteEndPoint + ": " + data;
-                            XMLLogs.Logs.Add(new Tuple<DateTime, string>(DateTime.Now, data));
-                            //XMLLogs.Serialize();
-                            foreach (var item in XMLLogs.Logs)
+                            //obsluga zapytania o logi
+
+                            if (XMLLogs.MatchPatternXML(data))
                             {
-                                Console.WriteLine(item.Item1);
-                                Console.WriteLine(item.Item2);
+                                Console.WriteLine("Recived a query " + data);
+                                XMLLogs.ReturnDatesXML(data);
                             }
-                            byte[] msg = System.Text.Encoding.ASCII.GetBytes(data);
-                            lock (clientsList)
+                            else
                             {
-                                try
+                                data = "ID: " + clientTemp.Client.RemoteEndPoint + ": " + data;
+                                Console.WriteLine("Recived " + data);
+                                //zapisywanie danych do xml
+                                XMLLogs.Logs.Add(new Tuple<DateTime, string>(DateTime.Now, data));
+                                //XMLLogs.Serialize();
+                                foreach (var item in XMLLogs.Logs)
                                 {
-                                    foreach (var clients in clientsList)
+                                    Console.WriteLine(item.Item1);
+                                    Console.WriteLine(item.Item2);
+                                }
+                                //koniec zapisywania danych do xml
+                                byte[] msg = System.Text.Encoding.ASCII.GetBytes(data);
+                                lock (clientsList)
+                                {
+                                    try
                                     {
-                                        try
+                                        foreach (var clients in clientsList)
                                         {
-                                            stream2 = clients.GetStream();
-                                            stream2.Write(msg, 0, msg.Length);
-                                            Console.WriteLine("Sent to {1}: {0}", data, clients.Client.RemoteEndPoint.ToString());
-                                        }
-                                        catch (InvalidOperationException e)
-                                        {
-                                            Console.WriteLine(e.Message.ToString());
+                                            try
+                                            {
+                                                stream2 = clients.GetStream();
+                                                stream2.Write(msg, 0, msg.Length);
+                                                Console.WriteLine("Sent to {1}: {0}", data, clients.Client.RemoteEndPoint.ToString());
+                                            }
+                                            catch (InvalidOperationException e)
+                                            {
+                                                Console.WriteLine(e.Message.ToString());
+                                            }
                                         }
                                     }
+                                    catch (InvalidOperationException)
+                                    {
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine(ex.ToString());
+                                    }
                                 }
-                                catch (InvalidOperationException)
-                                {
-                                }
-                                catch (Exception ex)
-                                {
-                                    Console.WriteLine(ex.ToString());
-                                }
-                            }
+                            }//tutaj zakonczyc else?
                             i = stream.Read(bytes, 0, bytes.Length);
                         }
                     }
