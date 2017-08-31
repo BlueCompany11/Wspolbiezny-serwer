@@ -8,25 +8,39 @@ using System.Xml.Serialization;
 
 namespace srv_kon
 {
-    [Serializable]
+
     public class XMLLogs
     {
-        public static List<Tuple<DateTime, string>> Logs = new List<Tuple<DateTime, string>>();
-        [XmlIgnore]
+
+        //public static List<Tuple<DateTime, string>> Logs = new List<Tuple<DateTime, string>>();
+        public static List<MessageLog> mLogs = new List<MessageLog>();
         public static string logAddress = @"C:\Users\Polgard-PC\Desktop\New folder (2)\srv kon\srv kon\Logs.xml";
-        [ThreadStatic][XmlIgnore]
+        [ThreadStatic]
         public static string fromDate;
-        [ThreadStatic][XmlIgnore]
+        [ThreadStatic]
         public static string toDate;
-        public static void Serialize()
+
+        public DateTime dateXml;
+        public string messageXml;
+        public XMLLogs()
+        {
+
+        }
+        public XMLLogs(Tuple<DateTime,string> x)
+        {
+            dateXml = x.Item1;
+            messageXml = x.Item2;
+        }
+
+        public static void SerializeXML(List<MessageLog> mlist)
         {
             using (TextWriter tw = new StreamWriter(logAddress))
             {
-                XmlSerializer xs = new XmlSerializer(typeof(List<Tuple<DateTime, string>>));
+                XmlSerializer xs = new XmlSerializer(typeof(List<MessageLog>));
                 xs.Serialize(tw, logAddress);
             }
         }
-        //queryLogs = "$MsG_"+from.ToString()+"_"+to.ToString()+"$";
+
         public static bool MatchPatternXML(string message)
         {
             string compareData = "$MsG_";
@@ -40,6 +54,7 @@ namespace srv_kon
 
             return true;
         }
+
         public static void ReturnDatesXML(string message)
         {
             string fromString = "";

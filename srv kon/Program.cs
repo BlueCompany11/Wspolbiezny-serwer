@@ -83,6 +83,7 @@ namespace srv_kon
         {
             NetworkStream stream2;
             string data;
+            
             while (true)
             {
                 if (clientTemp.Connected)
@@ -102,7 +103,6 @@ namespace srv_kon
                     }
                     lock (stream)
                     {
-                        //stream = clientTemp.GetStream();
                         //klienci nasluchuja rownolegle korzystajac z jednego strumienia na zmiane go redefiniujac
                         //jesli sie cos pojawi to od razu to wysylaja to wszystkich klientow poza soba samym
                         int i = stream.Read(bytes, 0, bytes.Length);
@@ -110,25 +110,28 @@ namespace srv_kon
                         {
                             data = System.Text.Encoding.ASCII.GetString(bytes, 0, i);
                             //obsluga zapytania o logi
-
                             if (XMLLogs.MatchPatternXML(data))
                             {
+                                //TO TRZEBA POPRAWIC
                                 Console.WriteLine("Recived a query " + data);
                                 XMLLogs.ReturnDatesXML(data);
+                                //zapisywanie danych do xml
+                                Tuple<DateTime, string> t = new Tuple<DateTime, string>(DateTime.Now, data);
+                                MessageLog temp = new MessageLog(t.Item1, t.Item2);
+                                XMLLogs.mLogs.Add(temp);
+                                //testowa wartosc
+                                XMLLogs.SerializeXML(XMLLogs.mLogs); //System.InvalidOperationException
+                                foreach (var item in XMLLogs.mLogs)
+                                {
+                                    Console.WriteLine(item);
+                                }
+                                //koniec zapisywania danych do xml
                             }
                             else
                             {
                                 data = "ID: " + clientTemp.Client.RemoteEndPoint + ": " + data;
                                 Console.WriteLine("Recived " + data);
-                                //zapisywanie danych do xml
-                                XMLLogs.Logs.Add(new Tuple<DateTime, string>(DateTime.Now, data));
-                                //XMLLogs.Serialize();
-                                foreach (var item in XMLLogs.Logs)
-                                {
-                                    Console.WriteLine(item.Item1);
-                                    Console.WriteLine(item.Item2);
-                                }
-                                //koniec zapisywania danych do xml
+
                                 byte[] msg = System.Text.Encoding.ASCII.GetBytes(data);
                                 lock (clientsList)
                                 {
